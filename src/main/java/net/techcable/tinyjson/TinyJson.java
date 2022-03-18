@@ -142,6 +142,72 @@ public final class TinyJson {
         }
     }
 
+
+    public static final class JsonArray extends JsonValue {
+        private final List<JsonValue> elements;
+        private JsonArray(List<JsonValue> elements) {
+            this.elements = Objects.requireNonNull(elements);
+        }
+
+        private static final JsonArray EMPTY = viewOf(Collections.emptyList());
+
+        /**
+         * Return an immutable empty array
+         *
+         * @see Collections#emptyMap()
+         * @return an empty map that is immutable
+         */
+        public static JsonArray empty() {
+            return EMPTY;
+        }
+
+        /**
+         * Convert this value into its java string representation.
+         *
+         * THIS DOES NOT EMIT JSON.
+         *
+         * @return the java string representation
+         */
+        @Override
+        public String toString() {
+            return this.elements.toString();
+        }
+
+        @Override
+        public int hashCode() {
+            return this.elements.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj instanceof JsonArray) {
+                return this.elements.equals(((JsonArray) obj).elements);
+            } else {
+                return false;
+            }
+        }
+
+        public static JsonArray viewOf(List<JsonValue> value) {
+            return new JsonArray(value);
+        }
+        public static JsonArray copyOf(List<JsonValue> value) {
+            JsonArray arr = mutableEmpty();
+            arr.elements.addAll(value);
+            return arr;
+        }
+
+        /**
+         * Return a mutable empty array.
+         *
+         * @see ArrayList()
+         * @return a mutable and empty array
+         */
+        public static JsonArray mutableEmpty() {
+            return new JsonArray(new ArrayList<>());
+        }
+    }
+
     /**
      * Raw interface to the underlying parser.
      *
@@ -188,8 +254,7 @@ public final class TinyJson {
                 case '{':
                     return parseObject();
                 case '[':
-                    // TODO: implement
-                    throw new UnsupportedOperationException("TODO: Array");
+                    return parseArray();
                 default:
                     return parsePrimitive(true);
             }
@@ -214,6 +279,26 @@ public final class TinyJson {
                 }
             }
             return JsonObject.viewOf(res);
+        }
+        public JsonArray parseArray() throws IOException {
+            skipWhitespace();
+            expect('[');
+            List<JsonValue> elements = new ArrayList<>();
+            elementsLoop: while (true) {
+                JsonValue value = parseValue();
+                elements.add(value);
+                skipWhitespace();
+                char next = expectChar();
+                switch (next) {
+                    case ',':
+                        break; // break switch
+                    case ']':
+                        break elementsLoop;
+                    default:
+                        throw unexpectedChar(next, "Expected either `,` or `]`");
+                }
+            }
+            return JsonArray.viewOf(elements);
         }
         public JsonPrimitive parsePrimitive() throws IOException {
             return parsePrimitive(false);

@@ -8,6 +8,7 @@ import java.io.Reader;
 import java.util.*;
 
 public final class TinyJson {
+    private TinyJson() {}
 
     public static class Serializer {
         private final StringBuilder builder = new StringBuilder();

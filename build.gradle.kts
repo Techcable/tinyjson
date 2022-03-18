@@ -12,7 +12,8 @@ dependencies {
 
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(8))
+        // TODO: Remove module-info.java to make compatible with java 8
+        languageVersion.set(JavaLanguageVersion.of(11))
     }
 }
 

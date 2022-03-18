@@ -9,16 +9,62 @@ import java.util.*;
 
 public final class TinyJson {
 
+    public static void writeStringInto(String target, StringBuilder builder) {
+        builder.append('"');
+        escapeAllCharsInto(target, builder);
+        builder.append('"');
+    }
+    public static String escapeAllChars(String target) {
+        StringBuilder res = new StringBuilder(target.size());
+        escapeAllCharsInto(target, res);
+        return res.toString();
+    }
+    public static void escapeAllCharsInto(String target, StringBuilder builder) {
+        for (int i = 0; i < target.length(); i++) {
+            escapeCharInto(target.charAt(i), builder);
+        }
+    }
+    public static void escapeCharInto(char c, StringBuilder builder) {
+        if (c >= 32 && c < 127) {
+            // Printable ASCII
+            builder.append(c);
+        }
+        builder.append('\\');
+        switch (c) {
+            case '\\':
+            case '"':
+                builder.append(c);
+                break;
+            case '\t':
+                builder.append('t');
+                break;
+            case '\n':
+                builder.append('n');
+            case '\r':
+                builder.append('r');
+                break;
+            default:
+                builder.append(Integer.toHexString(c));
+                break;
+        }
+    }
+
     public abstract static class JsonValue {
         /**
-         * Return the java string representation of this object.
+         * Serialize this value as a json string.
          *
-         * THIS DOES NOT EMIT JSON.
-         *
-         * @return the java string representation.
+         * @return the json string representation
          */
         @Override
-        public abstract String toString();
+        public String toString() {
+            StringBuilder res = new StringBuilder();
+            this.toStringBuilder(res);
+            return res.toString();
+        }
+        /**
+         * Serialize this value into the specified buffer
+         */
+        public abstract void toStringBuilder(StringBuilder builder);
         @Override
         public abstract int hashCode();
         @Override
@@ -35,23 +81,31 @@ public final class TinyJson {
             return Objects.hashCode(this.value);
         }
 
-        /**
-         * Return the java-level string representation of this object.
-         *
-         * THIS DOES NOT EMIT JSON.
-         *
-         * @return the java string representation
-         */
         @Override
         public String toString() {
-            return Objects.toString(value);
+            if (this.value instanceof String) {
+                return super.toString(); // Uses StringBuilder
+            } else {
+                return Objects.toString(value);
+            }
+        }
+
+        @Override
+        public void toStringBuilder(StringBuilder builder) {
+            if (this.value instanceof String) {
+                TinyJson.writeStringInto((String) this.value, builder);
+            } else {
+                builder.append(this.value);
+            }
         }
 
         @Override
         public boolean equals(Object obj) {
             if (this == obj) return true;
             if (obj instanceof JsonPrimitive) {
-                return Objects.equals(this.value, ((JsonPrimitive) obj).value);
+                Object otherValue = ((JsonPrimitive) obj).value;
+                return this.value == otherValue ||
+                    Objects.equals(this.value, otherValue);
             } else {
                 return false;
             }
@@ -76,7 +130,7 @@ public final class TinyJson {
 
     public static final class JsonObject extends JsonValue {
         private final Map<String, JsonValue> entries;
-        public JsonObject(Map<String, JsonValue> map) {
+        private JsonObject(Map<String, JsonValue> map) {
             this.entries = Objects.requireNonNull(map);
         }
 
@@ -92,16 +146,14 @@ public final class TinyJson {
             return EMPTY;
         }
 
-        /**
-         * Convert this value into its java string representation.
-         *
-         * THIS DOES NOT EMIT JSON.
-         *
-         * @return the java string representation
-         */
         @Override
-        public String toString() {
-            return this.entries.toString();
+        public void toStringBuilder(StringBuilder builder) {
+            boolean first = true;
+            for (Map.Entry<String, JsonValue> entry : this.entries.entrySet()) {
+                if (first) builder.append(',');
+                TinyJson.writeStringInto()
+                first = false;
+            }
         }
 
         @Override

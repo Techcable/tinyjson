@@ -9,47 +9,122 @@ import java.util.*;
 
 public final class TinyJson {
 
-    public static void writeStringInto(String target, StringBuilder builder) {
-        builder.append('"');
-        escapeAllCharsInto(target, builder);
-        builder.append('"');
-    }
-    public static String escapeAllChars(String target) {
-        StringBuilder res = new StringBuilder(target.size());
-        escapeAllCharsInto(target, res);
-        return res.toString();
-    }
-    public static void escapeAllCharsInto(String target, StringBuilder builder) {
-        for (int i = 0; i < target.length(); i++) {
-            escapeCharInto(target.charAt(i), builder);
+    public static class Serializer {
+        private final StringBuilder builder = new StringBuilder();
+        private Serializer() {}
+
+        public static Serializer simple() {
+            return new Serializer();
         }
-    }
-    public static void escapeCharInto(char c, StringBuilder builder) {
-        if (c >= 32 && c < 127) {
-            // Printable ASCII
-            builder.append(c);
+
+        public Serializer serialize(boolean b) {
+            builder.append(b);
+            return this;
         }
-        builder.append('\\');
-        switch (c) {
-            case '\\':
-            case '"':
+        public Serializer serialize(int i) {
+            builder.append(i);
+            return this;
+        }
+        public Serializer serialize(double d) {
+            builder.append(d);
+            return this;
+        }
+        public Serializer serialize(String s) {
+            builder.append('"');
+            for (int i = 0; i < s.length(); i++) {
+                escapeCharInto(s.charAt(i));
+            }
+            builder.append('"');
+            return this;
+        }
+        private void escapeCharInto(char c) {
+            if (c >= 32 && c < 127) {
+                // Printable ASCII
                 builder.append(c);
-                break;
-            case '\t':
-                builder.append('t');
-                break;
-            case '\n':
-                builder.append('n');
-            case '\r':
-                builder.append('r');
-                break;
-            default:
-                builder.append(Integer.toHexString(c));
-                break;
+            }
+            builder.append('\\');
+            switch (c) {
+                case '\\':
+                case '"':
+                    builder.append(c);
+                    break;
+                case '\t':
+                    builder.append('t');
+                    break;
+                case '\n':
+                    builder.append('n');
+                case '\r':
+                    builder.append('r');
+                    break;
+                default:
+                    builder.append(Integer.toHexString(c));
+                    break;
+            }
+        }
+
+        public Serializer serialize(JsonSerializable ser) {
+            if (ser == null) {
+                this.builder.append((Object) null);
+            } else {
+                ser.serializeJson(this);
+            }
+            return this;
+        }
+
+        public <T extends JsonSerializable> Serializer serializeObject(Map<String, T> entries) {
+            boolean first = true;
+            builder.append('{');
+            for (Map.Entry<String, T> entry : entries.entrySet()) {
+                if (!first) builder.append(',');
+                serialize(entry.getKey());
+                builder.append(':');
+                serialize(entry.getValue());
+                first = false;
+            }
+            builder.append('}');
+            return this;
+        }
+        public <T extends JsonSerializable> Serializer serializeArray(List<T> entries) {
+            boolean first = true;
+            builder.append('[');
+            for (T entry : entries) {
+                if (!first) builder.append(',');
+                this.serialize(entry);
+                first = false;
+            }
+            builder.append(']');
+            return this;
+        }
+        /* package */ void serializePrimitive0(JsonPrimitive prim) {
+            Object value = prim.getValueAsObject();
+            if (value instanceof String) {
+                this.serialize((String) value);
+            } else {
+                this.builder.append(Objects.toString(value));
+            }
+        }
+
+        @Override
+        public String toString() {
+            return this.builder.toString();
         }
     }
 
-    public abstract static class JsonValue {
+    public static interface JsonSerializable {
+        public void serializeJson(TinyJson.Serializer serializer);
+
+        public static String toJsonString(JsonSerializable value) {
+            if (value == null) {
+                return "null";
+            } else {
+                TinyJson.Serializer ser = TinyJson.Serializer.simple();
+                value.serializeJson(ser);
+                return value.toString();
+            }
+        }
+    }
+
+    public abstract static class JsonValue implements JsonSerializable {
         /**
          * Serialize this value as a json string.
          *
@@ -57,14 +132,10 @@ public final class TinyJson {
          */
         @Override
         public String toString() {
-            StringBuilder res = new StringBuilder();
-            this.toStringBuilder(res);
-            return res.toString();
+            TinyJson.Serializer serializer = TinyJson.Serializer.simple();
+            this.serializeJson(serializer);
+            return serializer.toString();
         }
-        /**
-         * Serialize this value into the specified buffer
-         */
-        public abstract void toStringBuilder(StringBuilder builder);
         @Override
         public abstract int hashCode();
         @Override
@@ -76,6 +147,13 @@ public final class TinyJson {
             this.value = value;
         }
 
+        /**
+         * Get the value of this primitive as an untyped object
+         */
+        public Object getValueAsObject() {
+            return this.value;
+        }
+
         @Override
         public int hashCode() {
             return Objects.hashCode(this.value);
@@ -84,19 +162,16 @@ public final class TinyJson {
         @Override
         public String toString() {
             if (this.value instanceof String) {
-                return super.toString(); // Uses StringBuilder
+                return super.toString(); // Use serializer
             } else {
                 return Objects.toString(value);
             }
         }
 
         @Override
-        public void toStringBuilder(StringBuilder builder) {
-            if (this.value instanceof String) {
-                TinyJson.writeStringInto((String) this.value, builder);
-            } else {
-                builder.append(this.value);
-            }
+        public void serializeJson(TinyJson.Serializer ser) {
+            // NOTE: This is an implementation detail
+            ser.serializePrimitive0(this);
         }
 
         @Override
@@ -147,13 +222,8 @@ public final class TinyJson {
         }
 
         @Override
-        public void toStringBuilder(StringBuilder builder) {
-            boolean first = true;
-            for (Map.Entry<String, JsonValue> entry : this.entries.entrySet()) {
-                if (first) builder.append(',');
-                TinyJson.writeStringInto()
-                first = false;
-            }
+        public void serializeJson(TinyJson.Serializer ser) {
+            ser.serializeObject(this.entries);
         }
 
         @Override
@@ -203,6 +273,11 @@ public final class TinyJson {
 
         private static final JsonArray EMPTY = viewOf(Collections.emptyList());
 
+        @Override
+        public void serializeJson(TinyJson.Serializer ser) {
+            ser.serializeArray(this.elements);
+        }
+
         /**
          * Return an immutable empty array
          *
@@ -211,18 +286,6 @@ public final class TinyJson {
          */
         public static JsonArray empty() {
             return EMPTY;
-        }
-
-        /**
-         * Convert this value into its java string representation.
-         *
-         * THIS DOES NOT EMIT JSON.
-         *
-         * @return the java string representation
-         */
-        @Override
-        public String toString() {
-            return this.elements.toString();
         }
 
         @Override

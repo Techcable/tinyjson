@@ -503,6 +503,7 @@ public final class TinyJson {
                 }
                 primaryVal = 0;
             } else {
+                pushBack(next);
                 primaryVal = parseRawUnsignedInteger();
             }
             OptionalInt fraction = OptionalInt.empty();

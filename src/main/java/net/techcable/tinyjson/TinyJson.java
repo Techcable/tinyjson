@@ -13,11 +13,32 @@ package net.techcable.tinyjson;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.util.*;
 
+/**
+ * A tiny json parser.
+ */
 public final class TinyJson {
     private TinyJson() {}
 
+    /**
+     * Parse the specified string as json
+     *
+     * @param text the text to parse
+       @throws JsonException if an error occurs parsing json
+     * @return the json value
+     */
+    public static TinyJson.JsonValue parseString(String text) {
+        try {
+            Parser parser = new Parser(new StringReader(text));
+            JsonValue value = parser.parseValue();
+            parser.expectFinished();
+            return value;
+        } catch (IOException e) {
+            throw new JsonIOException(e);
+        }
+    }
     public static class Serializer {
         private final StringBuilder builder = new StringBuilder();
         private Serializer() {}
@@ -676,6 +697,12 @@ public final class TinyJson {
         }
         public JsonSyntaxException genericError(String msg) {
             return new JsonSyntaxException(msg, this.offset);
+        }
+        public void expectFinished() throws IOException {
+            int c = this.readChar();
+            if (c >= 0) {
+                throw new JsonSyntaxException("Expected EOF, but got " + c, this.offset);
+            }
         }
     }
 
